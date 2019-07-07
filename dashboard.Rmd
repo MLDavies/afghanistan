@@ -1,0 +1,497 @@
+---
+title: "Province Deep Dives"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    vertical_layout: fill
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(dplyr)
+library(plotly)
+```
+
+
+Farah
+=================================
+
+Column {data-width=400}
+-----------------------------------------------------------------------
+
+### General Fighting Locations
+
+
+```{r Farah Map Data, include = FALSE}
+### Chart A Data ###
+
+## Load Data:
+df = read.csv('C:/Users/Andrew/Desktop/Projects/Afghanistan/Violence/2018.csv')
+provinces = read.csv('C:/Users/Andrew/Desktop/Projects/Afghanistan/map/provinces.csv')
+districts = read.csv('C:/Users/Andrew/Desktop/Projects/Afghanistan/map/districts.csv')
+districts$combined <- paste0(as.character(districts$PROV_NA_EN),"<br /> ", as.character(districts$DIST_NA_EN))
+farah_event2017 = read.csv('C:/Users/Andrew/Desktop/Projects/Afghanistan/events/farah_event_distances2017.csv')
+farah_event2018 = read.csv('C:/Users/Andrew/Desktop/Projects/Afghanistan/events/farah_event_distances2018.csv')
+
+## Set month order
+month_order = c('January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December')
+farah_event2017$Month <- factor(farah_event2017$Month, levels = month_order, ordered=T)
+farah_event2018$Month <- factor(farah_event2018$Month, levels = month_order, ordered=T)
+
+# create numeric variable for axis
+farah_event2017 <- farah_event2017 %>% mutate(case = as.numeric(factor(farah_event2017$Month)))
+farah_event2018 <- farah_event2018 %>% mutate(case = as.numeric(factor(farah_event2018$Month)))
+```
+
+
+```{r Farah Map Event}
+## Load Data
+farah_capatk = read.csv('C:/Users/Andrew/Desktop/Projects/Afghanistan/events/farah_capatk2018.csv')
+
+## Set month order
+farah_capatk$month <- factor(farah_capatk$month, levels = month_order, ordered=T)
+
+## Create numeric month for graph
+farah_capatk <- farah_capatk %>% mutate(case = as.numeric(factor(farah_capatk$month)))
+
+## Arrange
+farah_capatk <- arrange(farah_capatk, month)
+
+## Load accumulate funx
+accumulate_by <- function(dat, var) {
+  var <- lazyeval::f_eval(var, dat)
+  lvls <- plotly:::getLevels(var)
+  dats <- lapply(seq_along(lvls), function(x) {
+    cbind(dat[var %in% lvls[seq(1, x)], ], frame = lvls[[x]])
+  })
+  dplyr::bind_rows(dats)
+}
+
+## Run accumulate
+farah_capatk <- farah_capatk %>% accumulate_by(~case)
+farah_capatk <- arrange(farah_capatk, case, frame)
+```
+
+
+
+```{r Farah - Map}
+provinces %>% plot_ly(x = ~x, y = ~y) %>%
+  add_trace(data = provinces %>% filter(PROV_NA_EN == 'Farah'), x = ~x, y = ~y, type = 'scatter', mode = 'lines', hoverinfo = 'none', showlegend = F, line = list(color = 'black', width = 1.4)) %>%
+  add_trace(data = districts %>% filter(PROV_NA_EN == 'Farah') %>% group_by(combined), x = ~x, y = ~y, type = 'scatter', mode = 'lines', showlegend = F, hoveron = 'fills', hoverinfo='text', name = ~paste0('Province: ', PROV_NA_EN,"<br /> ", 'District: ', DIST_NA_EN), line = list(color = 'black', width = 0.4)) %>%
+  add_trace(data = farah_event2017, x = ~Longitude, y = ~Latitude, type = 'scatter', mode = 'markers', showlegend = T, name = 'Violence 2017', hoverinfo = 'text', text = ~paste0('Average location of fighting in: ', Month), frame = ~case, marker = list(color = 'red', size = 10, opacity = .45)) %>%
+  add_trace(data = farah_event2018, x = ~Longitude, y = ~Latitude, type = 'scatter', mode = 'markers', showlegend = T, name = 'Violence 2018', hoverinfo = 'text', text = ~paste0('Average location of fighting in: ', Month), frame = ~case, marker = list(color = 'blue', size = 10, opacity = .45)) %>%
+  add_trace(data = farah_capatk, x = ~longitude, y = ~latitude, type = 'scatter', mode = 'markers', showlegend = T, name = 'Capital Attacked 2018', hoverinfo = 'text', text = ~text, frame = ~frame, marker = list(color = 'green', size = 10, opacity = .45)) %>%
+  layout(
+    xaxis = list(range = c(60, 65),
+                 title = '',
+                 showgrid = F,
+                 showticklabels = F),
+    yaxis = list(range = c(31, 34),
+                 title = '',
+                 showgrid = F,
+                 showticklabels = F)) %>% animation_opts(
+    1000, easing = "elastic", redraw = FALSE
+  ) %>%
+  animation_slider(
+    currentvalue = list(
+      prefix = "Month: "
+    )
+  )
+```
+
+
+
+Column {data-width=350}
+-----------------------------------------------------------------------
+
+### Afghan National Security Forces KIA
+
+```{r Farah - Casualty Comparison, include = F}
+## Load Data
+violence_2017 = read.csv('C:/Users/Andrew/Desktop/Projects/Afghanistan/violence/2017.csv')
+violence_2018 = read.csv('C:/Users/Andrew/Desktop/Projects/Afghanistan/violence/2018.csv')
+
+## Fix Province white spacing
+violence_2017$Province <- trimws(violence_2017$Province, which = "both")
+violence_2018$Province <- trimws(violence_2018$Province, which = "both")
+
+## Exclude uncertain / nonviolent events
+violence_2017 <- violence_2017 %>% filter(Event.Type == 'Military' | 
+                                            Event.Type == 'Hostile Action' | 
+                                            Event.Type == 'Explosive Hazard')
+
+violence_2018 <- violence_2018 %>% filter(Event.Type == 'Military' | 
+                                            Event.Type == 'Hostile Action' | 
+                                            Event.Type == 'Explosive Hazard')
+
+## Select Farah and needed variables
+violence_2017 <- dplyr::select(violence_2017, Month, Province, KIA)
+violence_2017 <- violence_2017 %>% filter(Province == 'Farah')
+
+violence_2018 <- dplyr::select(violence_2018, Month, Province, KIA)
+violence_2018 <- violence_2018 %>% filter(Province == 'Farah')
+
+## Fix months
+violence_2017$Month <- trimws(violence_2017$Month, which = "both")
+unique(violence_2017$Month)
+
+violence_2018$Month <- trimws(violence_2018$Month, which = "both")
+unique(violence_2018$Month)
+
+## Calculate KIA
+violence_2017 <- violence_2017 %>% group_by(Month) %>% mutate(total = sum(na.omit((KIA)))) 
+violence_2017 <- violence_2017 %>%  group_by(Month) %>% summarise_at("total", max, na.rm = TRUE)
+
+violence_2018 <- violence_2018 %>% group_by(Month) %>% mutate(total = sum(na.omit((KIA)))) 
+violence_2018 <- violence_2018 %>%  group_by(Month) %>% summarise_at("total", max, na.rm = TRUE)
+
+## Set Month Order
+month_order = c('January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December')
+violence_2017$Month <- factor(violence_2017$Month, levels = month_order, ordered=T)
+violence_2018$Month <- factor(violence_2018$Month, levels = month_order, ordered=T)
+
+## Arrange
+violence_2017 <- arrange(violence_2017, Month)
+violence_2018 <- arrange(violence_2018, Month)
+
+## Create numeric month for graph
+violence_2017 <- violence_2017 %>% mutate(case = as.numeric(factor(violence_2017$Month)))
+violence_2018 <- violence_2018 %>% mutate(case = as.numeric(factor(violence_2018$Month)))
+
+## Load accumulate funx
+accumulate_by <- function(dat, var) {
+  var <- lazyeval::f_eval(var, dat)
+  lvls <- plotly:::getLevels(var)
+  dats <- lapply(seq_along(lvls), function(x) {
+    cbind(dat[var %in% lvls[seq(1, x)], ], frame = lvls[[x]])
+  })
+  dplyr::bind_rows(dats)
+}
+
+## Run accumulate
+violence_2017 <- violence_2017 %>% accumulate_by(~case)
+violence_2017 <- arrange(violence_2017, case, frame)
+
+violence_2018 <- violence_2018 %>% accumulate_by(~case)
+violence_2018 <- arrange(violence_2018, case, frame)
+```
+
+
+```{r Farah - Casualty Graphs}
+plot_ly(data = violence_2017, x = ~case, y = ~total, type = 'scatter', mode = 'markers+lines', frame = ~frame, name = '2017 ANDSF KIA') %>%
+  add_trace(data = violence_2018, x = ~case, y = ~total, type = 'scatter', mode = 'markers+lines', frame = ~frame, name = '2018 ANDSF KIA') %>%
+  layout(
+    xaxis = list(title = 'Month',
+                 dtick = 1),
+    yaxis = list(title = '# Killed in Action'))  %>% 
+  animation_opts(
+    frame = 400, 
+    redraw = FALSE
+  ) %>%
+  animation_slider(
+    currentvalue = list(
+      prefix = "Month: "
+    )
+  )
+```
+
+
+
+### Average Fighting Distance from Capital
+
+```{r Farah - Distances Graph, include = F}
+## Load Data
+farah_distance2017 = read.csv('C:/Users/Andrew/Desktop/Projects/Afghanistan/events/farah_distances2017.csv')
+farah_distance2018 = read.csv('C:/Users/Andrew/Desktop/Projects/Afghanistan/events/farah_distances2018.csv')
+
+## Set month order
+month_order = c('January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December')
+farah_distance2017$month <- factor(farah_distance2017$month, levels = month_order, ordered=T)
+farah_distance2018$month <- factor(farah_distance2018$month, levels = month_order, ordered=T)
+
+## Recode month to numeric
+farah_distance2017 <- farah_distance2017 %>% mutate(case = as.numeric(factor(farah_distance2017$month)))
+farah_distance2018 <- farah_distance2018 %>% mutate(case = as.numeric(factor(farah_distance2018$month)))
+
+## Load accumulate funx
+accumulate_by <- function(dat, var) {
+  var <- lazyeval::f_eval(var, dat)
+  lvls <- plotly:::getLevels(var)
+  dats <- lapply(seq_along(lvls), function(x) {
+    cbind(dat[var %in% lvls[seq(1, x)], ], frame = lvls[[x]])
+  })
+  dplyr::bind_rows(dats)
+}
+
+## Run accumulate
+farah_distance2017 <- farah_distance2017 %>% accumulate_by(~case)
+farah_distance2017 <- arrange(farah_distance2017, case, frame)
+
+farah_distance2018 <- farah_distance2018 %>% accumulate_by(~case)
+farah_distance2018 <- arrange(farah_distance2018, case, frame)
+```
+
+
+```{r Farah - Build Distance Graph}
+plot_ly(data = farah_distance2017, x = ~case, y = ~distance, type = 'scatter', mode = 'markers+lines', frame = ~frame, name = '2017 Distance from Capital') %>%
+  add_trace(data = farah_distance2018, x = ~case, y = ~distance, type = 'scatter', mode = 'markers+lines', frame = ~frame, name = '2018 Distance from Capital') %>%
+  layout(
+    xaxis = list(title = 'Month',
+                 dtick = 1),
+    yaxis = list(title = 'Distance'))  %>% 
+  animation_opts(
+    frame = 400, 
+    redraw = FALSE
+  ) %>%
+  animation_slider(
+    currentvalue = list(
+      prefix = "Month: "
+    )
+  )
+```
+
+
+
+
+
+
+
+
+Ghazni
+=================================
+
+Column {data-width=400}
+-----------------------------------------------------------------------
+
+### General Fighting Locations
+
+
+```{r Ghazni - Map Data, include = FALSE}
+### Chart A Data ###
+
+## Load Data:
+df = read.csv('C:/Users/Andrew/Desktop/Projects/Afghanistan/Violence/2018.csv')
+provinces = read.csv('C:/Users/Andrew/Desktop/Projects/Afghanistan/map/provinces.csv')
+districts = read.csv('C:/Users/Andrew/Desktop/Projects/Afghanistan/map/districts.csv')
+districts$combined <- paste0(as.character(districts$PROV_NA_EN),"<br /> ", as.character(districts$DIST_NA_EN))
+ghazni_event2017 = read.csv('C:/Users/Andrew/Desktop/Projects/Afghanistan/events/ghazni_event_distances2017.csv')
+ghazni_event2018 = read.csv('C:/Users/Andrew/Desktop/Projects/Afghanistan/events/ghazni_event_distances2018.csv')
+
+## Set month order
+month_order = c('January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December')
+ghazni_event2017$Month <- factor(ghazni_event2017$Month, levels = month_order, ordered=T)
+ghazni_event2018$Month <- factor(ghazni_event2018$Month, levels = month_order, ordered=T)
+
+# create numeric variable for axis
+ghazni_event2017 <- ghazni_event2017 %>% mutate(case = as.numeric(factor(ghazni_event2017$Month)))
+ghazni_event2018 <- ghazni_event2018 %>% mutate(case = as.numeric(factor(ghazni_event2018$Month)))
+```
+
+
+```{r Ghazni - Map Event}
+## Load Data
+ghazni_capatk = read.csv('C:/Users/Andrew/Desktop/Projects/Afghanistan/events/ghazni_capatk2018.csv')
+
+## Set month order
+ghazni_capatk$month <- factor(ghazni_capatk$month, levels = month_order, ordered=T)
+
+## Create numeric month for graph
+ghazni_capatk <- ghazni_capatk %>% mutate(case = as.numeric(factor(ghazni_capatk$month)))
+
+## Arrange
+ghazni_capatk <- arrange(ghazni_capatk, month)
+
+## Load accumulate funx
+accumulate_by <- function(dat, var) {
+  var <- lazyeval::f_eval(var, dat)
+  lvls <- plotly:::getLevels(var)
+  dats <- lapply(seq_along(lvls), function(x) {
+    cbind(dat[var %in% lvls[seq(1, x)], ], frame = lvls[[x]])
+  })
+  dplyr::bind_rows(dats)
+}
+
+## Run accumulate
+ghazni_capatk <- ghazni_capatk %>% accumulate_by(~case)
+ghazni_capatk <- arrange(ghazni_capatk, case, frame)
+```
+
+
+
+```{r Ghazni - Map}
+provinces %>% plot_ly(x = ~x, y = ~y) %>%
+  add_trace(data = provinces %>% filter(PROV_NA_EN == 'Ghazni'), x = ~x, y = ~y, type = 'scatter', mode = 'lines', hoverinfo = 'none', showlegend = F, line = list(color = 'black', width = 1.4)) %>%
+  add_trace(data = districts %>% filter(PROV_NA_EN == 'Ghazni') %>% group_by(combined), x = ~x, y = ~y, type = 'scatter', mode = 'lines', showlegend = F, hoveron = 'fills', hoverinfo='text', name = ~paste0('Province: ', PROV_NA_EN,"<br /> ", 'District: ', DIST_NA_EN), line = list(color = 'black', width = 0.4)) %>%
+  add_trace(data = ghazni_event2017, x = ~Longitude, y = ~Latitude, type = 'scatter', mode = 'markers', showlegend = T, name = 'Violence 2017', hoverinfo = 'text', text = ~paste0('Average location of fighting in: ', Month), frame = ~case, marker = list(color = 'red', size = 10, opacity = .45)) %>%
+  add_trace(data = ghazni_event2018, x = ~Longitude, y = ~Latitude, type = 'scatter', mode = 'markers', showlegend = T, name = 'Violence 2018', hoverinfo = 'text', text = ~paste0('Average location of fighting in: ', Month), frame = ~case, marker = list(color = 'blue', size = 10, opacity = .45)) %>%
+  add_trace(data = ghazni_capatk, x = ~longitude, y = ~latitude, type = 'scatter', mode = 'markers', showlegend = T, name = 'Capital Attacked 2018', hoverinfo = 'text', text = ~text, frame = ~frame, marker = list(color = 'green', size = 10, opacity = .45)) %>%
+  layout(
+    xaxis = list(range = c(66.6, 69),
+                 title = '',
+                 showgrid = F,
+                 showticklabels = F),
+    yaxis = list(range = c(32, 34.3),
+                 title = '',
+                 showgrid = F,
+                 showticklabels = F)) %>% animation_opts(
+    1000, easing = "elastic", redraw = FALSE
+  ) %>%
+  animation_slider(
+    currentvalue = list(
+      prefix = "Month: "
+    )
+  )
+```
+
+
+
+Column {data-width=350}
+-----------------------------------------------------------------------
+
+### Afghan National Security Forces KIA
+
+```{r Ghazni - Casualty Comparison, include = F}
+## Load Data
+violence_2017 = read.csv('C:/Users/Andrew/Desktop/Projects/Afghanistan/violence/2017.csv')
+violence_2018 = read.csv('C:/Users/Andrew/Desktop/Projects/Afghanistan/violence/2018.csv')
+
+## Fix Province white spacing
+violence_2017$Province <- trimws(violence_2017$Province, which = "both")
+violence_2018$Province <- trimws(violence_2018$Province, which = "both")
+
+## Exclude uncertain / nonviolent events
+violence_2017 <- violence_2017 %>% filter(Event.Type == 'Military' | 
+                                            Event.Type == 'Hostile Action' | 
+                                            Event.Type == 'Explosive Hazard')
+
+violence_2018 <- violence_2018 %>% filter(Event.Type == 'Military' | 
+                                            Event.Type == 'Hostile Action' | 
+                                            Event.Type == 'Explosive Hazard')
+
+## Select ghazni and needed variables
+violence_2017 <- dplyr::select(violence_2017, Month, Province, KIA)
+violence_2017 <- violence_2017 %>% filter(Province == 'Ghazni')
+
+violence_2018 <- dplyr::select(violence_2018, Month, Province, KIA)
+violence_2018 <- violence_2018 %>% filter(Province == 'Ghazni')
+
+## Fix months
+violence_2017$Month <- trimws(violence_2017$Month, which = "both")
+unique(violence_2017$Month)
+
+violence_2018$Month <- trimws(violence_2018$Month, which = "both")
+unique(violence_2018$Month)
+
+## Calculate KIA
+violence_2017 <- violence_2017 %>% group_by(Month) %>% mutate(total = sum(na.omit((KIA)))) 
+violence_2017 <- violence_2017 %>%  group_by(Month) %>% summarise_at("total", max, na.rm = TRUE)
+
+violence_2018 <- violence_2018 %>% group_by(Month) %>% mutate(total = sum(na.omit((KIA)))) 
+violence_2018 <- violence_2018 %>%  group_by(Month) %>% summarise_at("total", max, na.rm = TRUE)
+
+## Set Month Order
+month_order = c('January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December')
+violence_2017$Month <- factor(violence_2017$Month, levels = month_order, ordered=T)
+violence_2018$Month <- factor(violence_2018$Month, levels = month_order, ordered=T)
+
+## Arrange
+violence_2017 <- arrange(violence_2017, Month)
+violence_2018 <- arrange(violence_2018, Month)
+
+## Create numeric month for graph
+violence_2017 <- violence_2017 %>% mutate(case = as.numeric(factor(violence_2017$Month)))
+violence_2018 <- violence_2018 %>% mutate(case = as.numeric(factor(violence_2018$Month)))
+
+## Load accumulate funx
+accumulate_by <- function(dat, var) {
+  var <- lazyeval::f_eval(var, dat)
+  lvls <- plotly:::getLevels(var)
+  dats <- lapply(seq_along(lvls), function(x) {
+    cbind(dat[var %in% lvls[seq(1, x)], ], frame = lvls[[x]])
+  })
+  dplyr::bind_rows(dats)
+}
+
+## Run accumulate
+violence_2017 <- violence_2017 %>% accumulate_by(~case)
+violence_2017 <- arrange(violence_2017, case, frame)
+
+violence_2018 <- violence_2018 %>% accumulate_by(~case)
+violence_2018 <- arrange(violence_2018, case, frame)
+```
+
+
+```{r Ghazni - Casualty Graphs}
+plot_ly(data = violence_2017, x = ~case, y = ~total, type = 'scatter', mode = 'markers+lines', frame = ~frame, name = '2017 ANDSF KIA') %>%
+  add_trace(data = violence_2018, x = ~case, y = ~total, type = 'scatter', mode = 'markers+lines', frame = ~frame, name = '2018 ANDSF KIA') %>%
+  layout(
+    xaxis = list(title = 'Month',
+                 dtick = 1),
+    yaxis = list(title = '# Killed in Action'))  %>% 
+  animation_opts(
+    frame = 400, 
+    redraw = FALSE
+  ) %>%
+  animation_slider(
+    currentvalue = list(
+      prefix = "Month: "
+    )
+  )
+```
+
+
+
+### Average Fighting Distance from Capital
+
+```{r Ghazni - Distances Graph, include = F}
+## Load Data
+ghazni_distance2017 = read.csv('C:/Users/Andrew/Desktop/Projects/Afghanistan/events/ghazni_distances2017.csv')
+ghazni_distance2018 = read.csv('C:/Users/Andrew/Desktop/Projects/Afghanistan/events/ghazni_distances2018.csv')
+
+## Set month order
+month_order = c('January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December')
+ghazni_distance2017$month <- factor(ghazni_distance2017$month, levels = month_order, ordered=T)
+ghazni_distance2018$month <- factor(ghazni_distance2018$month, levels = month_order, ordered=T)
+
+## Recode month to numeric
+ghazni_distance2017 <- ghazni_distance2017 %>% mutate(case = as.numeric(factor(ghazni_distance2017$month)))
+ghazni_distance2018 <- ghazni_distance2018 %>% mutate(case = as.numeric(factor(ghazni_distance2018$month)))
+
+## Load accumulate funx
+accumulate_by <- function(dat, var) {
+  var <- lazyeval::f_eval(var, dat)
+  lvls <- plotly:::getLevels(var)
+  dats <- lapply(seq_along(lvls), function(x) {
+    cbind(dat[var %in% lvls[seq(1, x)], ], frame = lvls[[x]])
+  })
+  dplyr::bind_rows(dats)
+}
+
+## Run accumulate
+ghazni_distance2017 <- ghazni_distance2017 %>% accumulate_by(~case)
+ghazni_distance2017 <- arrange(ghazni_distance2017, case, frame)
+
+ghazni_distance2018 <- ghazni_distance2018 %>% accumulate_by(~case)
+ghazni_distance2018 <- arrange(ghazni_distance2018, case, frame)
+```
+
+
+```{r Ghazni - Build Distance Graph}
+plot_ly(data = ghazni_distance2017, x = ~case, y = ~distance, type = 'scatter', mode = 'markers+lines', frame = ~frame, name = '2017 Distance from Capital') %>%
+  add_trace(data = ghazni_distance2018, x = ~case, y = ~distance, type = 'scatter', mode = 'markers+lines', frame = ~frame, name = '2018 Distance from Capital') %>%
+  layout(
+    xaxis = list(title = 'Month',
+                 dtick = 1),
+    yaxis = list(title = 'Distance'))  %>% 
+  animation_opts(
+    frame = 400, 
+    redraw = FALSE
+  ) %>%
+  animation_slider(
+    currentvalue = list(
+      prefix = "Month: "
+    )
+  )
+```

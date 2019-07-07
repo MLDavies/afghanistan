@@ -1,0 +1,413 @@
+---
+editor_options:
+  chunk_output_type: console
+---
+
+
+```{r, include = FALSE}
+library(reticulate)
+use_python("C:/Users/Andrew/ANACON~1/")
+library(dplyr)
+library(plotly)
+library(stargazer)
+```
+
+
+# Afghanistan: Examining Rare Events
+
+![img](https://i.ytimg.com/vi/6-9e-LqEozc/maxresdefault.jpg)
+*Taliban attack Farah City*
+
+At different points in time in 2018, the Taliban attacked two Afghan cities: Farah City and Ghazni City.[^1] [^2] Aside from rare event intrigue, what explains their timing? I use records of violent events[^3] collected by Afghanistan's Ministry of Interior to probe for answers. In this notebook, I examine the data, simplify its interpretation through aggregate statistics, and use these statistics to visualize the distribution of the threat in the country.
+
+
+[^1]: https://www.nytimes.com/2018/05/16/world/asia/taliban-farah-afghanistan.html
+[^2]: https://time.com/longform/ghazni-fight-taliban/
+[^3]: This includes government actions, insurgent actions, and explosions.
+
+# Findings
+
+* Attacks on Afghan cities occurred in provinces facing *high threat*,[^4] meaning the attacks occurred exclusively in provinces that experience more violent events than roughly 25 of the 34 provinces. The primary implication that we can draw from this finding is that a closer look at violent events *within*, not *across* provinces, could tell us a lot more about these rare events.
+
+* Ghazni had roughly 300 more violent events than the average of *high threat* provinces and over 3 times more violent events than the country average. Ghazni also had 370 more violent event incidents than Farah, which is a difference of more than one standard deviation. This means that Ghazni had a sizable nonsystematic component contributing to its level of violent events.
+
+* Farah's violent events level was slightly below the *high threat* average, but was over 2 times greater than the average province. 
+
+[^4]: High threat provinces were determined by separating the violence levels of provinces into percentiles, with high threat provinces falling into the 75%. This means that 75% of all provinces have fewer violent events than high threat provinces.
+
+# Data Exploration
+
+We can see that the dataset is mostly complete in terms of events but is notably incomplete in terms of casualty information.
+
+```{python, include = FALSE}
+### Explore 2018 Violence Data ###
+
+# import librarys
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+import plotly
+import plotly.offline as py
+import plotly.graph_objs as go
+# load data
+df2018 = pd.read_csv('C:/Users/Andrew/Desktop/Projects/Afghanistan/violence/2018.csv',
+                     encoding = 'Latin_1')
+```
+
+```{r, include = FALSE}
+# Examine data
+df2018_r = read.csv('C:/Users/Andrew/Desktop/Projects/Afghanistan/violence/2018.csv')
+stargazer(df2018_r, type = 'html', column.sep.width = '15pt')
+```
+
+<style>
+table, td, th {
+  border: none;
+  padding-left: 1em;
+  padding-right: 1em;
+  min-width: 50%;
+  margin-left: auto;
+  margin-right: auto;
+  margin-top: 1em;
+  margin-bottom: 1em;
+}
+</style>
+
+<table style="text-align:center", align = "center"><tr><td colspan="8" style="border-bottom: 1px solid black"></td></tr><tr><td style="text-align:left">Statistic</td><td>N</td><td>Mean</td><td>St. Dev.</td><td>Min</td><td>Pctl(25)</td><td>Pctl(75)</td><td>Max</td></tr>
+<tr><td colspan="8" style="border-bottom: 1px solid black"></td></tr><tr><td style="text-align:left">Tracking.Number</td><td>10,992</td><td>38,601.650</td><td>3,174.120</td><td>33,138</td><td>35,844.8</td><td>41,349.2</td><td>44,110</td></tr>
+<tr><td style="text-align:left">Day</td><td>10,992</td><td>15.422</td><td>8.779</td><td>1</td><td>8</td><td>23</td><td>31</td></tr>
+<tr><td style="text-align:left">Latitude</td><td>10,992</td><td>33.975</td><td>1.515</td><td>29.433</td><td>32.745</td><td>34.871</td><td>38.409</td></tr>
+<tr><td style="text-align:left">Longitude</td><td>10,992</td><td>67.266</td><td>2.684</td><td>61.058</td><td>64.900</td><td>69.254</td><td>71.599</td></tr>
+<tr><td style="text-align:left">KIA.CIV.NGO.ASG</td><td>604</td><td>3.851</td><td>8.304</td><td>1.000</td><td>1.000</td><td>3.000</td><td>103.000</td></tr>
+<tr><td style="text-align:left">ABD.CIV.NGO.ASG</td><td>49</td><td>9.204</td><td>25.375</td><td>1.000</td><td>1.000</td><td>5.000</td><td>170.000</td></tr>
+<tr><td style="text-align:left">KIA</td><td>1,960</td><td>3.030</td><td>4.116</td><td>1.000</td><td>1.000</td><td>3.000</td><td>45.000</td></tr>
+<tr><td style="text-align:left">WIA</td><td>2,463</td><td>2.620</td><td>3.151</td><td>1.000</td><td>1.000</td><td>3.000</td><td>70.000</td></tr>
+<tr><td style="text-align:left">ABD.Report.Host.Nation.Security.Military</td><td>80</td><td>3.737</td><td>4.215</td><td>1.000</td><td>1.000</td><td>5.000</td><td>25.000</td></tr>
+<tr><td style="text-align:left">KIA.Report.Host.Nation.Government</td><td>35</td><td>1.229</td><td>0.547</td><td>1.000</td><td>1.000</td><td>1.000</td><td>3.000</td></tr>
+<tr><td style="text-align:left">WIA.Report.Host.Nation.Government</td><td>19</td><td>1.789</td><td>1.182</td><td>1.000</td><td>1.000</td><td>2.000</td><td>5.000</td></tr>
+<tr><td style="text-align:left">ABD.Report.Host.Nation.Government</td><td>6</td><td>22.167</td><td>50.384</td><td>1.000</td><td>1.000</td><td>2.750</td><td>125.000</td></tr>
+<tr><td style="text-align:left">KIA.Enemy..VEO.Insurgent.Criminal.</td><td>2,421</td><td>9.178</td><td>13.191</td><td>1.000</td><td>2.000</td><td>11.000</td><td>300.000</td></tr>
+<tr><td style="text-align:left">WIA.Enemy..VEO.Insurgent.Criminal.</td><td>1,071</td><td>6.870</td><td>7.779</td><td>1.000</td><td>2.000</td><td>9.000</td><td>82.000</td></tr>
+<tr><td style="text-align:left">DET.Enemy..VEO.Insurgent.Criminal.</td><td>197</td><td>5.299</td><td>7.175</td><td>1.000</td><td>1.000</td><td>6.000</td><td>50.000</td></tr>
+<tr><td colspan="8" style="border-bottom: 1px solid black"></td></tr></table>
+
+
+
+
+# How Violent is the Country?
+
+The barplot below shows some clustering in values, suggesting that we can further classify our provinces into easy to understand threat categories like: low, moderate, and high. Percentiles is a good solution.
+
+<br>
+
+```{python, include = FALSE}
+### Examine aggregate violence by province
+# Check for spelling errors
+len(df2018['Province'].unique()) # 36; thus there are 2 spelling errors
+p_list = df2018['Province'].unique() # create an object to sort
+np.sort(p_list) # Farah and Ghor are the culprits with extra spaces
+
+# Recode Farah and Ghor
+df2018['Province'] = df2018['Province'].str.replace('Farah ', 'Farah')
+df2018['Province'] = df2018['Province'].str.replace('Ghor ', 'Ghor')
+
+# Check our work
+len(df2018['Province'].unique()) # 34; correct
+
+# Look at our event categories to exclude uncertain / nonviolent events
+df2018['Event Type'].unique() # Lets only keep military, hostile action, and explosive
+
+filter_term = ((df2018['Event Type'] == 'Military') | 
+        (df2018['Event Type'] == 'Hostile Action') | 
+        (df2018['Event Type'] == 'Explosive Hazard')) # create a filter term
+
+df2018 = df2018.loc[filter_term] # filter to above categories
+df2018['Event Type'].unique() # quick check on our work; correct
+
+# Create by province count of events
+df_summary = pd.pivot_table(df2018, index = ['Province'], values = ['Event Type'],
+                            aggfunc = 'count').reset_index()
+
+# Panjsher province is missing since it has no events; lets add manually
+df_summary.loc[33] = ['Panjsher', 0] # create a row via index
+
+# Sort Data for visualization
+df_summary = df_summary.sort_values(by='Event Type', ascending = False)
+df_summary
+```
+
+
+```{python, include = FALSE}
+# Create new barplot with a loop to create the three threat traces
+
+df_summary['counter'] = range(34) # create a new variable for grouping to flip the x-axis the way I want
+container = []
+for name, value in df_summary.groupby('counter'):
+    trace = (go.Bar(x=value['Province'], y=value['Event Type'], showlegend = False, 
+                            name = name))
+    container.append(trace)
+
+layout = dict(
+        autosize = False,
+        width = 900,
+        height = 800)
+
+fig = dict(data=container, layout = layout)
+py.plot(fig, filename = 'bar1.html', auto_open = False) # this is a hack to then paste python-created plotly graphics into RMD
+```
+
+
+```{r, echo = FALSE}
+htmltools::includeHTML("bar1.html")
+```
+
+<br>
+
+
+With the below categories specified, the barplot is presented again in slightly different fashion. We can see that the use of percentiles does a fairly good job of classifying provinces into simplified threat categories.
+
+<br>
+
+
+$$\text{Province Threat} = \begin{cases} 
+	\text{high threat:} \hspace{1.5cm} \text{violent events} > 75\% \\
+	\text{moderate threat:} \hspace{.7cm} 25\% > \text{violent events} < 75\% \\
+	\text{low threat:} \hspace{1.7cm} \text{violent events} < 25\%  \\ \end{cases}  $$
+
+<br>
+
+
+```{python, include = FALSE}
+# high violence: violence > 75%
+# mod violence: 25% > violence < 75% 
+# low violence: violence < 25%
+
+sum_stats = df_summary.describe() # sum stats object
+
+# create provincial cutpoints
+high_cut = sum_stats['Event Type'][6] # 75% percentile
+low_cut = sum_stats['Event Type'][4] # 25% percentile
+
+high_provinces = df_summary['Event Type'] >= high_cut
+mod_provinces = (df_summary['Event Type'] > low_cut) & (df_summary['Event Type'] < high_cut)
+low_provinces = df_summary['Event Type'] <= low_cut
+
+# apply cutpoint labels to new categorical variable
+df_summary['dummy'] = np.nan
+df_summary.loc[df_summary['Event Type'] >= high_cut, 'dummy'] = 'High'
+df_summary.loc[df_summary['Event Type'] <= low_cut, 'dummy'] = 'Low'
+
+# moderate value more complicated conditional statement
+filter_term = ((df_summary['Event Type'] < high_cut) & 
+        (df_summary['Event Type'] > low_cut)) # create a filter term for moderate
+df_summary.loc[filter_term, 'dummy'] = 'Moderate' # apply filter
+
+# create categorical order
+cat_order = ['High', 'Moderate', 'Low']
+# apply the order to the variable
+df_summary['dummy'] = pd.Categorical(df_summary['dummy'], ordered=True, categories=cat_order)
+
+# Create Plotly barplot with new categories in a loop
+container = []
+for name, value in df_summary.groupby('dummy'):
+    trace = (go.Bar(x=value['Province'], y=value['Event Type'], showlegend = True, 
+                            name = name))
+    container.append(trace)
+fig = dict(data=container, layout = layout)
+py.plot(fig, filename = 'bar2.html', auto_open = False)
+```
+
+```{r, echo = FALSE}
+htmltools::includeHTML("bar2.html")
+```
+
+
+<br>
+
+
+# A Geospatial Look
+
+While the barplots are interesting, they offer little insight into whether or not there is a geospatial component to the data. The map below fixes that. We can see that there is a substantive difference in the levels of violent of events depending on where you live in the country, with the south having the most violent events.
+
+<br>
+
+
+```{python, include = FALSE}
+# SubTask 4: Create a Map
+# load map data
+provinces = pd.read_csv('C:/Users/Andrew/Desktop/Projects/Afghanistan/map/provinces.csv')
+
+# Check map data province spellings
+len(provinces['PROV_NA_EN'].unique()) # 34; correct
+[x for x in provinces['PROV_NA_EN'].unique() if x not in df_summary['Province'].unique()] # find mismatches
+provinces['PROV_NA_EN'] = provinces['PROV_NA_EN'].str.replace('Hilmand', 'Helmand') # fix mismatches
+provinces['PROV_NA_EN'] = provinces['PROV_NA_EN'].str.replace('Hirat', 'Herat') # fix mismatches
+provinces['PROV_NA_EN'] = provinces['PROV_NA_EN'].str.replace('Sar-e-Pul', 'Sar-e Pul') # fix mismatches
+
+# generate province lists for color coding
+high_list = df_summary[high_provinces]['Province']
+high_list = high_list.tolist()
+
+mod_list = df_summary[mod_provinces]['Province']
+mod_list = mod_list.tolist()
+
+low_list = df_summary[low_provinces]['Province']
+low_list = low_list.tolist()
+```
+
+```{python, include = FALSE}
+### Create Dummy for high violence provinces that matches the violence data
+pattern = '|'.join(high_list)     # joining list for matching
+provinces['high_dummy'] = provinces['PROV_NA_EN'].str.contains(pattern)
+provinces['high_dummy'] = provinces['high_dummy'].map({True: 1, False: 0})
+provinces['high_dummy_id'] = provinces.groupby(['PROV_NA_EN','high_dummy']).ngroup()
+provinces.loc[provinces['high_dummy'] == 0, 'high_dummy_id'] = np.nan
+provinces.loc[~provinces['high_dummy_id'].isnull(), 'high_dummy_id'] = 'Province: ' + provinces['PROV_NA_EN'] + '<br /> ' + 'Violence Level: High'
+
+### Repeat process; create dummy for moderate violence provinces
+pattern = '|'.join(mod_list)     # joining list for matching
+provinces['mod_dummy'] = provinces['PROV_NA_EN'].str.contains(pattern)
+provinces['mod_dummy'] = provinces['mod_dummy'].map({True: 1, False: 0})
+provinces['mod_dummy_id'] = provinces.groupby(['PROV_NA_EN','mod_dummy']).ngroup()
+provinces.loc[provinces['mod_dummy'] == 0, 'mod_dummy_id'] = np.nan
+provinces.loc[~provinces['mod_dummy_id'].isnull(), 'mod_dummy_id'] = 'Province: ' + provinces['PROV_NA_EN'] + '<br /> ' + 'Violence Level: Moderate'
+
+### Repeat process; create dummy for low violence provinces
+pattern = '|'.join(low_list)     # joining list for matching
+provinces['low_dummy'] = provinces['PROV_NA_EN'].str.contains(pattern)
+provinces['low_dummy'] = provinces['low_dummy'].map({True: 1, False: 0})
+provinces['low_dummy_id'] = provinces.groupby(['PROV_NA_EN','low_dummy']).ngroup()
+provinces.loc[provinces['low_dummy'] == 0, 'low_dummy_id'] = np.nan
+provinces.loc[~provinces['low_dummy_id'].isnull(), 'low_dummy_id'] = 'Province: ' + provinces['PROV_NA_EN'] + '<br /> ' + 'Violence Level: Low'
+```
+
+
+```{python, include = FALSE}
+### Create the map in a few loops
+container = []
+for x, province in provinces.groupby('shapeid'):
+    trace = (go.Scatter(x=province.x, y=province.y, showlegend=False, hoverinfo = 'none', 
+                    mode = 'lines', line = dict(color = ('rgb(0, 0, 0)'), width = 0.8)))
+    container.append(trace)
+
+for x, high_threat in provinces.groupby('high_dummy_id'):
+    trace = (go.Scatter(x=high_threat.x, y=high_threat.y, showlegend = False, hoverinfo = 'text',
+                            fill = 'toself', fillcolor = 'rgba(165, 0, 38, 0.3)',
+                            name = x,
+                            mode = 'lines', line = dict(
+        color = ('rgb(0, 0, 0)'),
+        width = 0.8)))
+    container.append(trace)
+
+for x, mod_threat in provinces.groupby('mod_dummy_id'):
+    trace = (go.Scatter(x=mod_threat.x, y=mod_threat.y, showlegend = False, hoverinfo = 'text',
+                            fill = 'toself', fillcolor = 'rgba(255, 165, 0, 0.3)',
+                            name = x,
+                            mode = 'lines', line = dict(
+        color = ('rgb(0, 0, 0)'),
+        width = 0.8)))
+    container.append(trace)
+
+for x, low_threat in provinces.groupby('low_dummy_id'):
+    trace = (go.Scatter(x=low_threat.x, y=low_threat.y, showlegend = False, hoverinfo = 'text',
+                            fill = 'toself', fillcolor = 'rgba(0, 165, 38, 0.3)',
+                            name = x,
+                            mode = 'lines', line = dict(
+        color = ('rgb(0, 0, 0)'),
+        width = 0.8)))
+    container.append(trace)
+```
+
+
+```{python, include = FALSE}
+## Create Map Addons
+# Colorscale rgba
+cscl=[[0.0, 'rgba(0, 165, 38, 0.3)'], # low 
+       [0.5, 'rgba(255, 165, 0, 0.3)'], # mod
+       [1.0, 'rgba(165, 0, 38, 0.3)']] # high
+
+## Ghostmarkers to draw the colorscale
+ghostmarker_y = ['38.5', '38.6'] 
+ghostmarker_x = ['61.0', '61.1']
+
+## Color Scale trace
+trace0 = go.Scatter(
+          x=ghostmarker_x,
+          y=ghostmarker_y,
+          hoverinfo = 'none',
+          showlegend=False,
+          mode='markers',
+          marker=dict(size=0.1, 
+                      color = [0, 1],
+                      colorscale=cscl,
+                      showscale=True,
+                      colorbar = dict(
+                              title = 'Violence Threat Scale',
+                              titleside = 'top',
+                              tickmode = 'array',
+                              tickvals = [0.0, 0.5, 1.0],
+                              ticktext = ['Low', 'Moderate', 'High'],
+                              ticks = 'outside')))
+
+container.append(trace0)
+
+## Layout
+layout = dict(
+        title = 'Afghanistan 2018: Levels of Violence and Capital Attacks',
+        autosize = False,
+        width = 975,
+        height = 800,
+    annotations=[
+        dict(
+            x=68.418,
+            y=33.544,
+            xref='x',
+            yref='y',
+            text='Capital Attacked',
+            showarrow=True,
+            arrowhead=1,
+            ax=135,
+            ay=-10
+        ),
+                dict(
+            x=62.128,
+            y=32.373,
+            xref='x',
+            yref='y',
+            text='Capital Attacked',
+            showarrow=True,
+            arrowhead=1,
+            ax=-135,
+            ay=20
+        )        
+    ],
+    xaxis=dict(
+        autorange=True,
+        showgrid=False,
+        zeroline=False,
+        showline=False,
+        ticks='',
+        showticklabels=False
+    ),
+    yaxis=dict(
+        autorange=True,
+        showgrid=False,
+        zeroline=False,
+        showline=False,
+        ticks='',
+        showticklabels=False
+    )
+)
+```
+
+```{python, include = FALSE}
+## Create Map
+fig = dict(data=container, layout=layout)
+py.plot(fig, filename = 'map1.html', auto_open = False)
+```
+
+```{r, echo = FALSE}
+htmltools::includeHTML("map1.html")
+```
+
